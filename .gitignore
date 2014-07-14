@@ -1,0 +1,17 @@
+.classpath
+.project
+*.iml
+*.ipr
+*.iws
+.settings/
+.tomcatplugin
+.clover/
+Thumbs.db
+work/
+logs/
+target/
+database/
+eclipse/
+logs/
+test-result/
+derby.log
