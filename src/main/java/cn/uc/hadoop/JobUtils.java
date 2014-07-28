@@ -39,36 +39,42 @@ public class JobUtils {
 	 * 估算Job需要的Reducers数量，基于Job输入数据量、配置参数和集群中Reduce槽数。
 	 * 
 	 * @return Reducers数量
+	 * @throws ClassNotFoundException 
+	 * @throws InterruptedException 
 	 */
-	static int estimateNumberOfReducers(Job job) throws IOException {
+	static int estimateNumberOfReducers(Job job) throws IOException{
 		// 0.95或者1.75 ×（节点数 ×mapred.tasktracker.tasks.maximum参数值）
-		Configuration conf = job.getConfiguration();
-
-		long bytesPerReducer = conf.getLong(BYTES_PER_REDUCER,
-				DEF_BYTES_PER_REDUCER);
-		int maxReducers = conf.getInt(MAX_REDUCERS, DEF_MAX_REDUCERS);
-
-		long totalInputFileSize = getInputSummary(job).getLength();
-
-		// 按数据量计算得到的reducer数量
-		int reducers = (int) ((totalInputFileSize + bytesPerReducer - 1) / bytesPerReducer);
-		reducers = Math.max(1, reducers);
-
-		JobClient client = new JobClient(new JobConf(conf));
-		int maxReduceTasks = client.getClusterStatus().getMaxReduceTasks();
-
-		// 如果按输入数据计算得到的reducer数远大于reduce的槽数，使用1.75，否则使用0.95
-		// 按系统槽数计算得到的reducer数量
-		int reducersOnStatus = maxReduceTasks * 95 / 100;
-		if (reducers >= maxReduceTasks * 3) {// *3 -> 远大于
-			reducersOnStatus = (maxReduceTasks * 175 + 100 - 1) / 100;// 向上取整
+		try{
+			Configuration conf = job.getConfiguration();
+	
+			long bytesPerReducer = conf.getLong(BYTES_PER_REDUCER,
+					DEF_BYTES_PER_REDUCER);
+			int maxReducers = conf.getInt(MAX_REDUCERS, DEF_MAX_REDUCERS);
+	
+			long totalInputFileSize = getInputLength(job);
+	
+			// 按数据量计算得到的reducer数量
+			int reducers = (int) ((totalInputFileSize + bytesPerReducer - 1) / bytesPerReducer);
+			reducers = Math.max(1, reducers);
+	
+			JobClient client = new JobClient(new JobConf(conf));
+			int maxReduceTasks = client.getClusterStatus().getMaxReduceTasks();
+	
+			// 如果按输入数据计算得到的reducer数远大于reduce的槽数，使用1.75，否则使用0.95
+			// 按系统槽数计算得到的reducer数量
+			int reducersOnStatus = maxReduceTasks * 95 / 100;
+			if (reducers >= maxReduceTasks * 3) {// *3 -> 远大于
+				reducersOnStatus = (maxReduceTasks * 175 + 100 - 1) / 100;// 向上取整
+			}
+			reducersOnStatus = Math.max(1, reducersOnStatus);
+	
+			reducers = Math.min(reducersOnStatus, reducers);
+			reducers = Math.min(maxReducers, reducers);
+			return reducers;
 		}
-		reducersOnStatus = Math.max(1, reducersOnStatus);
-
-		reducers = Math.min(reducersOnStatus, reducers);
-		reducers = Math.min(maxReducers, reducers);
-
-		return reducers;
+		catch(Exception e){
+			return 1;
+		}
 	}
 
 	/**
@@ -78,33 +84,19 @@ public class JobUtils {
 	 *            hadoop job
 	 * @return 所有输入路径的汇总
 	 * @throws IOException
+	 * @throws InterruptedException 
+	 * @throws ClassNotFoundException 
 	 */
-	private static ContentSummary getInputSummary(Job job) throws IOException {
-		Configuration conf = job.getConfiguration();
+	private static long getInputLength(Job job) throws IOException, InterruptedException, ClassNotFoundException {
 
-		long[] summary = { 0, 0, 0 };
-		String dirs = conf.get("mapred.input.dir", "");
-
-		// 存在可以不设置输入路径的情况（重载InputFormat）
-		for (String path : dirs.split(StringUtils.COMMA_STR)) {
-			try {
-				if(path.isEmpty()){
-					continue;
-				}
-				Path p = new Path(path);
-				
-				FileSystem fs = p.getFileSystem(conf);
-				ContentSummary cs = fs.getContentSummary(p);
-				
-				summary[0] += cs.getLength();
-				summary[1] += cs.getFileCount();
-				summary[2] += cs.getDirectoryCount();
-
-			} catch (IOException e) {
-				// Cannot get size of $path . Safely ignored.
-			}
+		InputFormat<?, ?> input =
+			      ReflectionUtils.newInstance(job.getInputFormatClass(), job.getConfiguration());
+		List<InputSplit> array = input.getSplits(job);
+		long sum = 0 ;
+		for(InputSplit is:array){
+			sum += is.getLength();
 		}
-		return new ContentSummary(summary[0], summary[1], summary[2]);
+		return sum;
 	}
 
 	/**
@@ -113,6 +105,9 @@ public class JobUtils {
 	 * @param job
 	 *            Hadoop Job
 	 * @throws IOException
+	 * @throws ClassNotFoundException 
+	 * @throws InterruptedException 
+	 * @throws IllegalStateException 
 	 */
 	public static void setNumberOfReducers(Job job) throws IOException {
 		job.setNumReduceTasks(estimateNumberOfReducers(job));
