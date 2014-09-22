@@ -34,15 +34,22 @@ public class JobUtils {
 	static final String MAX_REDUCERS = "uc.exec.reducers.max";
 	static final long DEF_BYTES_PER_REDUCER = 1000L * 1000 * 1000;
 	static final int DEF_MAX_REDUCERS = 999;
-
+	
+	static int estimateNumberOfReducers(Job job) throws IOException{
+		return estimateNumberOfReducers(job, 1);
+	}
 	/**
 	 * 估算Job需要的Reducers数量，基于Job输入数据量、配置参数和集群中Reduce槽数。
 	 * 
+	 * @param job
+	 *            hadoop job
+	 * @inputTimes
+	 *         map阶段的输入扩大倍数
 	 * @return Reducers数量
 	 * @throws ClassNotFoundException 
 	 * @throws InterruptedException 
 	 */
-	static int estimateNumberOfReducers(Job job) throws IOException{
+	static int estimateNumberOfReducers(Job job, int inputTimes) throws IOException{
 		// 0.95或者1.75 ×（节点数 ×mapred.tasktracker.tasks.maximum参数值）
 		try{
 			Configuration conf = job.getConfiguration();
@@ -51,7 +58,7 @@ public class JobUtils {
 					DEF_BYTES_PER_REDUCER);
 			int maxReducers = conf.getInt(MAX_REDUCERS, DEF_MAX_REDUCERS);
 	
-			long totalInputFileSize = getInputLength(job);
+			long totalInputFileSize = getInputLength(job) * inputTimes;
 	
 			// 按数据量计算得到的reducer数量
 			int reducers = (int) ((totalInputFileSize + bytesPerReducer - 1) / bytesPerReducer);
