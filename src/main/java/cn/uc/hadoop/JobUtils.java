@@ -35,9 +35,6 @@ public class JobUtils {
 	static final long DEF_BYTES_PER_REDUCER = 1000L * 1000 * 1000;
 	static final int DEF_MAX_REDUCERS = 999;
 	
-	static int estimateNumberOfReducers(Job job) throws IOException{
-		return estimateNumberOfReducers(job, 1);
-	}
 	/**
 	 * 估算Job需要的Reducers数量，基于Job输入数据量、配置参数和集群中Reduce槽数。
 	 * 
@@ -117,7 +114,10 @@ public class JobUtils {
 	 * @throws IllegalStateException 
 	 */
 	public static void setNumberOfReducers(Job job) throws IOException {
-		job.setNumReduceTasks(estimateNumberOfReducers(job));
+		setNumberOfReducers(job, 1);
+	}
+	public static void setNumberOfReducers(Job job,int inputTimes) throws IOException {
+		job.setNumReduceTasks(estimateNumberOfReducers(job, inputTimes));
 	}
 
 	/**
