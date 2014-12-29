@@ -103,6 +103,7 @@ public class LzoTextOutputFormat<K, V> extends FileOutputFormat<K, V> {
 		}
 		/**
 		 * 重载了close函数，在关闭stream后建立索引
+		 * 将错误抛出
 		 */
 		public void close(TaskAttemptContext context) throws IOException{
 			closeOutputStream(context);
@@ -112,6 +113,7 @@ public class LzoTextOutputFormat<K, V> extends FileOutputFormat<K, V> {
 				}
 			} catch (IOException e) {
 				LOG.error("Create indexing failed " + file, e);
+				throw e;
 			}
 		}
 		
