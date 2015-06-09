@@ -80,7 +80,41 @@ public class JobUtils {
 			return 1;
 		}
 	}
+	
+	static int estimateNumberOfReducers() throws IOException{
+		// 0.95或者1.75 ×（节点数 ×mapred.tasktracker.tasks.maximum参数值）
+		try{
+			
+			long bytesPerReducer = 150000000l;
+			int maxReducers = 999;
+	
+			long totalInputFileSize = 300*1024*1024*1024l ;
+	
+			// 按数据量计算得到的reducer数量
+			int reducers = (int) ((totalInputFileSize + bytesPerReducer - 1) / bytesPerReducer);
+			reducers = Math.max(1, reducers);
+	
+			JobClient client = new JobClient(new JobConf(conf));
+			int maxReduceTasks = client.getClusterStatus().getMaxReduceTasks();
+		
+			// 如果按输入数据计算得到的reducer数远大于reduce的槽数，使用1.75，否则使用0.95
+			// 按系统槽数计算得到的reducer数量
+			int reducersOnStatus = maxReduceTasks * 95 / 100;
+			if (reducers >= maxReduceTasks * 3) {// *3 -> 远大于
+				reducersOnStatus = (maxReduceTasks * 175 + 100 - 1) / 100;// 向上取整
+			}
+			reducersOnStatus = Math.max(1, reducersOnStatus);
+	
+			reducers = Math.min(reducersOnStatus, reducers);
+			reducers = Math.min(maxReducers, reducers);
+			return reducers;
+		}
+		catch(Exception e){
+			return 1;
+		}
+	}
 
+	
 	/**
 	 * 计算Job输入文件的大小
 	 * 
@@ -155,5 +189,14 @@ public class JobUtils {
 			      ReflectionUtils.newInstance(job.getInputFormatClass(), job.getConfiguration());
 		List<InputSplit> array = input.getSplits(job);
 		return array.size();
+	}
+	static public void main(String[] args){
+		try {
+			System.out.println(estimateNumberOfReducers());
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 	}
 }
